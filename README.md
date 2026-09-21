@@ -1,63 +1,73 @@
-# Pengu 2 (ペング okinawa yume)
+# Pengu 2: Okinawa Yume — オキナワのゆめ
 
-A single-screen arcade homage for the **Neo Geo Pocket Color**, in the spirit of
-Pengo (1982). Push ice blocks, crush the ones that can't move, clear the field
-of Sno-Bees before they corner you.
+Sequel to [Pengu](https://github.com/underscore42/pengu) for the **Neo Geo
+Pocket Color**. Same penguin, wrong hemisphere.
 
-Built under the **Studio So Not Kansai** label by [underscore42](https://github.com/underscore42).
+Studio So Not Kansai / [underscore42](https://github.com/underscore42).
 
-> `CartTitle "PENGU       "` · `CartID 0x0054` · `System 0x1000` (colour) · 160×152
+> `CartTitle "PENGU 2 YUME"` · `CartID 0x0056` · 160×152 · \*\*beta release\*\*
 
----
+オキナワのゆめ — *Okinawa no yume*
+
+Okinawa is also, emphatically, not Kansai.
+
+\---
+
+## Not a reskin
+
+Four rule changes, not just different pixels.
+
+**Palm trunks** are immovable and uncrushable — a piece of wall dropped in the
+middle of the field. You cannot clear a route through one, and they are the
+only interior anvil you can crush a block against.
+
+**Canopy occlusion.** Fronds sit on scroll plane 2, put in *front* of the
+sprites, so crabs can hide under them. Each palm carries its own 9-bit canopy
+mask, so no two silhouettes match. The canopy sways — one register write a
+frame — and the dead ground drifts with it, so cover you were relying on
+slides out from under a crab.
+
+The canopy occludes **visually only**. Blocks and crabs pass under fronds
+freely; only the trunk is solid.
+
+**Crabs come from the sea.** No eggs. The surf sends a fixed quota each round,
+so the pressure is continuous rather than something you can pre-empt.
+
+**Pineapples** pay points *and* blow the canopy clear for a couple of seconds,
+exposing whatever is hiding under the leaves.
 
 ## The game
 
-A 10×9 grid of 16px cells on a bright Antarctic ice field. Four fields, then
-they wrap.
+A 10×9 grid of 16px cells. Four fields, then they wrap.
 
-**Walk into a block and it slides** until it hits something — another block, a
-diamond, or the wall. The penguin stays put; the block does the travelling.
+Walk into a sand block and it slides until it hits something. The penguin
+stays put; the block travels. A block with nothing behind it can't be broken,
+only pushed — jam it against a block, a coconut, a trunk or the surf, then
+press A.
 
-**A block with nothing behind it can't be broken, only pushed.** Jam it against
-something first, then press A. That constraint is the whole game: you're always
-deciding whether to spend a block as a projectile or set it up as a wall.
+|kill|how|score|
+|-|-|-|
+|squash|slide a block into a crab|400 / 1600 / 3200 for multiples|
+|stomp|punch the surf to stun one, then walk over it|100|
 
-### Three ways to kill a Sno-Bee
-
-| Method | How | Score |
-|---|---|---|
-| Squash | Slide a block into it | 400 / 1600 / 3200 for 1 / 2 / 3 in one shove |
-| Egg | Crush its block before it hatches | 500 |
-| Stun | Punch the wall it's standing against, then walk over it | 100 |
-
-Clear every Sno-Bee **and** every egg to take the round. Eggs keep hatching
-while you play, so ignoring them is how you lose.
-
-At 60 seconds the round turns: Sno-Bees move at your speed and eggs hatch twice
-as fast. The stage marker flashes.
+Clear the sea's quota to take the round. At 60 seconds the round turns: crabs
+move at your speed and the surf sends them twice as fast.
 
 ### Controls
 
-| Input | Action |
-|---|---|
-| D-pad | Walk. Into a block, pushes it. |
-| A | Break the jammed block you're facing. Facing the wall, punches it. |
-| OPTION | Pause. On the title screen, shows the score table. |
+|input|action|
+|-|-|
+|D-pad|walk; into a block, pushes it|
+|A|break the jammed block you're facing. Facing the surf, punch it|
+|OPTION|pause. On the title screen, the score table|
 
-Menus and HUD are in Japanese (katakana) — スタート, ステージ, ライフ, ポーズ,
-ゲームオーバー, ハイスコア.
-
----
+\---
 
 ## Building
 
-Needs the ameliandev `ngpc-project-template` layout: a `Makefile`,
-`toolchain.mk`, `lcf/` and `common/`, with `cc900`/`tulink` under Wine.
-
-```sh
-# drop src/ into a template tree, then
-make
-```
+Drop `src/` into a tree with the ameliandev `ngpc-project-template` layout —
+`Makefile`, `toolchain.mk`, `lcf/` and `common/`, with `cc900`/`tulink` under
+Wine.
 
 `fontdump/` is a separate project with its own `src/`, so the same Makefile
 builds it unmodified.
@@ -65,80 +75,69 @@ builds it unmodified.
 ### Tools
 
 ```sh
-python3 tools/mkart.py       # regenerate tiles from the ASCII art in the script
-python3 tools/checkmaps.py   # validate fields: reachability, slide quality, sealed eggs
+python3 tools/mkart.py       # regenerate tiles from the ASCII art
+python3 tools/checkmaps.py   # validate fields: reachability, slides, palms
 python3 tools/checksound.py  # audit sound.c against the NGPC sound rules
+python3 tools/levels.py      # render all four fields as PNGs
 ```
 
-Two host harnesses compile the *real* game modules against stubbed library
-calls, so logic can be tested without hardware:
+Host harnesses compile the *real* game modules against stubbed library calls:
 
 ```sh
-gcc -std=gnu90 -D__interrupt= -Isrc -o sim \
-    tools/sim.c src/game.c src/entities.c src/snobee.c src/screen.c
-gcc -std=gnu90 -D__interrupt= -Isrc -o test_crush \
-    tools/test_crush.c src/game.c src/entities.c src/snobee.c src/screen.c
+gcc -std=gnu90 -D\_\_interrupt= -Isrc -o sim \\
+    tools/sim.c src/game.c src/entities.c src/snobee.c src/orca.c \\
+    src/scenes.c src/screen.c
 ```
 
-`sim.c` drives thousands of frames of random input and asserts invariants
-(coordinates in bounds, no runaway slide, chase actually closes, score never
-goes backwards). `test_crush.c` is a regression suite for the crush rules.
+`sim.c` asserts invariants over thousands of frames. `test\_crush.c`,
+`test\_orca.c`, `test\_stages.c`, `test\_banks.c` and `test\_canopy.c` cover the
+mechanics that timing-dependent random play never reaches.
 
-`checkmaps.py` has already caught two unwinnable fields where an egg hatched
-into a sealed pocket. Run it after editing `src/maps.h`.
-
----
+\---
 
 ## Implementation notes
 
-**Tiles 144–241, 98 used, 18 spare.** Four levels, egg blocks, stunned
-Sno-Bees and the desert-island theme all cost **zero** tiles — they're palette
-work. One tile set, retinted.
+**Tiles 144–255. 112 used, zero spare.** Nothing else fits without banking.
 
-**The field is not index 0.** Every playfield pixel is painted in indices 1–3
-and an empty cell is an explicit tile. Consequence worth knowing: a tile
-stamped over existing art *erases* it wherever the new tile is index 0, which
-is why the wall frame is part of the empty-cell fill rather than an overlay.
+Two sets are banked at runtime: the tropical set (trunk, frond, pineapple)
+sits over the 12-tile title logo and is swapped back by
+`install\_title\_tiles()` on returning to the front end; the intermission set
+sits over the kana block. Both restore on the way out.
 
-**Blocks slide as sprites.** Static blocks live on scroll plane 1; only one
-block is ever in motion, so a push hands it to four sprites, animates it at
-4px/frame, and stamps it back into the tilemap when it lands. No per-frame
-tilemap churn.
+**`SwapPlanes()` is a toggle**, not a setter — `SCR\_PRIORITY ^= 0x80`. Calling
+it once per level entry flips the canopy behind the field on alternate stages.
+`set\_canopy\_front()` tracks the state and only flips when it changes.
 
-**The chase** is the greedy grid pursuit from Blue Print Neo — close the larger
-axis gap first, fall back to the other axis, then any legal non-reversing turn.
-It works purely on cell coordinates, so it moved from 8px to 16px cells
-untouched.
+**The canopy masks never extend below the trunk.** Fronds in the cell below a
+trunk read as leaves growing out of the ground. `test\_canopy.c` asserts it.
 
-**Sound: the table must be `const`.** Non-const initialised data needs a
-`.data` copy ROM→RAM that doesn't happen on this cart runtime, so the array is
-garbage when `InstallSounds()` reads it — silent, while graphics work perfectly.
-`tools/checksound.py` enforces this and the other footguns (no `WaitVsync`
-between the install calls, non-zero `ToneStep`, decay to volume 0 within
-`Length`, 1-based `PlaySound`).
+**Katakana are traced from the BIOS charset**, not reconstructed — hand-drawn
+8×8 Japanese letterforms come out plausible-looking and wrong, because the
+strokes don't survive the resolution. See `ngpc-fontkit` for the ripper.
 
-Deeper build notes, gotchas and the full architecture write-up: **[DEVNOTES.md](DEVNOTES.md)**.
+The hiragana (のゆめ) are hand-drawn, because **JIS X 0201 is katakana only**
+and the BIOS has no hiragana at all. They are the one part of the font with no
+reference behind it.
 
----
+**Flash save is stubbed.** `library.c`'s `Flash()` hardcodes an offset of
+`0x1E0000` and erases block 30, neither of which exists on a 256KB cart. Scores
+live in RAM and reset on power-up. This affects every title in the catalogue
+that calls `Flash()`.
 
-## Legal
+\---
 
-**Pengu is a homage, not a port.** No original code, art, audio or data is
-used. Everything here was written from scratch for the NGPC.
+## Free ROM only
 
-*Pengo* is a trademark of SEGA. This project is not affiliated with, endorsed
-by, or connected to SEGA in any way. The name, artwork and all assets are
-original and deliberately distinct.
-
----
+Homage terms, same as Pengu. No physical cartridges of this title are produced
+or sold. *Pengo* is a trademark of SEGA; this project is not affiliated with,
+endorsed by, or connected to SEGA in any way. All code and art are original.
 
 ## The Happy Meal Theory
 
-Every homage in this collection is free. If it gave you a good half hour,
-consider passing that on rather than back:
+🍔🍟🥤🧸 If it gave you more fun than a Happy Meal would have, maybe send a bit
+where it might actually do some good:
 
-- [CurePSP](https://www.psp.org/) — progressive supranuclear palsy research and support
-- [Victoria Hospice Society](https://victoriahospice.org/) — Victoria, BC
-- [Hospice Southland](https://hospicesouthland.co.nz/) — Invercargill, NZ
+[CurePSP](https://www.psp.org/ways-to-give) ·
+[Victoria Hospice](https://victoriahospice.org/donate) ·
+[Hospice Southland](https://www.hospicesouthland.org.nz/about-us/donation/)
 
-No obligation, no tracking, no follow-up. Play the game.
